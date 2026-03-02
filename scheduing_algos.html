@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPU Scheduling Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3d;
+    --accent: #7c3aed;
+    --accent2: #06b6d4;
+    --accent3: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --success: #10b981;
+    --danger: #ef4444;
+  }
+
+  body.light {
+    --bg: #f0f2f8;
+    --surface: #ffffff;
+    --surface2: #e8ecf4;
+    --border: #c8d0e0;
+    --accent: #6d28d9;
+    --accent2: #0891b2;
+    --accent3: #d97706;
+    --text: #1e1e2e;
+    --muted: #64748b;
+  }
+
+  /* Theme Toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    padding: 7px 14px 7px 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    user-select: none;
+  }
+
+  .theme-toggle:hover { border-color: var(--accent); }
+
+  .toggle-track {
+    width: 38px; height: 20px;
+    background: var(--surface2);
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    position: relative;
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+
+  body.light .toggle-track { background: var(--accent); border-color: var(--accent); }
+
+  .toggle-thumb {
+    width: 14px; height: 14px;
+    background: var(--muted);
+    border-radius: 50%;
+    position: absolute;
+    top: 2px; left: 2px;
+    transition: transform 0.3s, background 0.3s;
+  }
+
+  body.light .toggle-thumb { transform: translateX(18px); background: white; }
+
+  .toggle-icon { font-size: 15px; line-height: 1; }
+  .toggle-label { font-size: 0.78rem; font-family: 'Space Mono', monospace; color: var(--muted); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.06) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  header h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #7c3aed, #06b6d4, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 1rem;
+    margin-top: 8px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    transition: border-color 0.3s;
+  }
+
+  .step:hover { border-color: var(--accent); }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .step-num {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .step h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Checkboxes */
+  .algo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .algo-card {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+
+  .algo-card:hover { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+  .algo-card.selected { border-color: var(--accent); background: rgba(124,58,237,0.18); }
+
+  .algo-card input[type="checkbox"] { display: none; }
+
+  .check-box {
+    width: 18px; height: 18px;
+    border: 2px solid var(--muted);
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .algo-card.selected .check-box {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .algo-card.selected .check-box::after {
+    content: '✓';
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .algo-label { font-size: 0.9rem; font-weight: 600; }
+
+  /* Priority options */
+  .radio-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .radio-option input { display: none; }
+  .radio-option.selected { border-color: var(--accent2); background: rgba(6,182,212,0.15); }
+
+  .radio-dot {
+    width: 14px; height: 14px;
+    border: 2px solid var(--muted);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .radio-option.selected .radio-dot {
+    border-color: var(--accent2);
+    background: var(--accent2);
+    box-shadow: 0 0 0 3px rgba(6,182,212,0.2);
+  }
+
+  /* Process count */
+  .count-control {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .count-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .count-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .count-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 40px;
+    text-align: center;
+  }
+
+  /* Process table */
+  .proc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .proc-table th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .proc-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .proc-table tr:last-child td { border-bottom: none; }
+
+  .proc-table input {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 10px;
+    width: 90px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+  }
+
+  .proc-table input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .pid-badge {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--accent2);
+    background: rgba(6,182,212,0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-block;
+  }
+
+  /* Quantum input */
+  .quantum-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .quantum-row label {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .quantum-row input {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    width: 120px;
+    transition: border-color 0.2s;
+  }
+
+  .quantum-row input:focus { outline: none; border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    padding: 12px 28px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #9f5cf7);
+    color: white;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(124,58,237,0.4);
+  }
+
+  .btn-accent2 {
+    background: linear-gradient(135deg, var(--accent2), #0891b2);
+    color: white;
+    box-shadow: 0 4px 20px rgba(6,182,212,0.3);
+  }
+
+  .btn-accent2:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(6,182,212,0.4);
+  }
+
+  /* Results section */
+  #results { margin-top: 32px; }
+
+  .algo-result {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 32px;
+    animation: fadeIn 0.5s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .algo-result h3 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .algo-tag {
+    font-size: 0.7rem;
+    font-family: 'Space Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(124,58,237,0.2);
+    color: var(--accent);
+    border: 1px solid rgba(124,58,237,0.3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* Gantt Chart */
+  .gantt-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .gantt-chart {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .gantt-inner {
+    display: flex;
+    align-items: flex-end;
+    min-width: max-content;
+    gap: 0;
+  }
+
+  .gantt-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gantt-bar {
+    padding: 10px 16px;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: white;
+    min-width: 52px;
+    text-align: center;
+    position: relative;
+    border-right: 2px solid var(--bg);
+    cursor: default;
+    transition: filter 0.2s;
+  }
+
+  .gantt-bar:hover { filter: brightness(1.2); }
+
+  .gantt-bar.idle {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px dashed var(--border);
+  }
+
+  .gantt-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 4px;
+    width: 100%;
+    text-align: left;
+    padding-left: 2px;
+  }
+
+  /* Colors for processes */
+  .p-colors {
+    --c0: #7c3aed; --c1: #06b6d4; --c2: #f59e0b; --c3: #10b981;
+    --c4: #ef4444; --c5: #ec4899; --c6: #8b5cf6; --c7: #14b8a6;
+  }
+
+  /* Result table */
+  .result-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 0.88rem;
+  }
+
+  .result-tbl th {
+    background: var(--surface2);
+    padding: 10px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-tbl td {
+    padding: 10px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .result-tbl tr:last-child td { border-bottom: none; }
+  .result-tbl tr:hover td { background: rgba(124,58,237,0.06); }
+
+  .avg-row {
+    margin-top: 16px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .avg-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+  }
+
+  .avg-chip span { color: var(--accent3); font-weight: 700; }
+
+  .hidden { display: none; }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 10px 0 20px;
+  }
+
+  @media (max-width: 600px) {
+    .step { padding: 20px; }
+    .algo-grid { grid-template-columns: 1fr 1fr; }
+    .proc-table input { width: 70px; }
+  }
+</style>
+</head>
+<body>
+<div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+  <span class="toggle-icon" id="themeIcon">🌙</span>
+  <div class="toggle-track"><div class="toggle-thumb"></div></div>
+  <span class="toggle-label" id="themeLabel">DARK</span>
+</div>
+
+<div class="wrapper p-colors">
+  <header>
+    <h1>CPU Scheduling<br>Simulator</h1>
+    <p>Visualize · Compare · Analyze</p>
+    <p>Siddharth Joshi</p>
+  </header>
+
+  <!-- Step 1: Select Algorithms -->
+  <div class="step" id="step1">
+    <div class="step-header">
+      <div class="step-num">01</div>
+      <h2>Select Scheduling Algorithms</h2>
+    </div>
+    <div class="algo-grid">
+      <label class="algo-card" id="card-fcfs">
+        <input type="checkbox" value="fcfs" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">FCFS</span>
+      </label>
+      <label class="algo-card" id="card-sjf">
+        <input type="checkbox" value="sjf" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">SJF (Non-Preemptive)</span>
+      </label>
+      <label class="algo-card" id="card-srtf">
+        <input type="checkbox" value="srtf" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">SRTF (Preemptive SJF)</span>
+      </label>
+      <label class="algo-card" id="card-priorityNP">
+        <input type="checkbox" value="priorityNP" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">Priority (Non-Preemptive)</span>
+      </label>
+      <label class="algo-card" id="card-priorityP">
+        <input type="checkbox" value="priorityP" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">Priority (Preemptive)</span>
+      </label>
+      <label class="algo-card" id="card-rr">
+        <input type="checkbox" value="rr" onchange="toggleCard(this)">
+        <div class="check-box"></div>
+        <span class="algo-label">Round Robin</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Step 2: Priority Type -->
+  <div class="step hidden" id="step-priority-type">
+    <div class="step-header">
+      <div class="step-num">02</div>
+      <h2>Priority Convention</h2>
+    </div>
+    <div class="radio-group" id="priorityTypeGroup">
+      <label class="radio-option" id="radio-low-high">
+        <input type="radio" name="priorityType" value="lh" onchange="selectRadio(this)">
+        <div class="radio-dot"></div>
+        <span>Lowest number = Highest priority</span>
+      </label>
+      <label class="radio-option" id="radio-high-low">
+        <input type="radio" name="priorityType" value="hl" onchange="selectRadio(this)">
+        <div class="radio-dot"></div>
+        <span>Highest number = Highest priority</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Step 3: Number of Processes -->
+  <div class="step" id="step3">
+    <div class="step-header">
+      <div class="step-num" id="step3num">02</div>
+      <h2>Number of Processes</h2>
+    </div>
+    <div class="count-control">
+      <button class="count-btn" onclick="changeCount(-1)">−</button>
+      <div class="count-display" id="countDisplay">3</div>
+      <button class="count-btn" onclick="changeCount(1)">+</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Process Details -->
+  <div class="step" id="step4">
+    <div class="step-header">
+      <div class="step-num" id="step4num">03</div>
+      <h2>Process Details</h2>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="proc-table" id="procTable">
+        <thead id="procHead"></thead>
+        <tbody id="procBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Step 5: Time Quantum (RR only) -->
+  <div class="step hidden" id="step-quantum">
+    <div class="step-header">
+      <div class="step-num" id="step5num">04</div>
+      <h2>Round Robin Time Quantum</h2>
+    </div>
+    <div class="quantum-row">
+      <label>Time Quantum (Q):</label>
+      <input type="number" id="quantumInput" min="1" value="2" placeholder="e.g. 2">
+    </div>
+  </div>
+
+  <!-- Calculate Button -->
+  <div style="text-align:center; margin: 24px 0;">
+    <button class="btn btn-primary" onclick="runAll()">⚡ Run Simulation</button>
+    &nbsp;
+    <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);" onclick="resetAll()">↺ Reset</button>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
+</div>
+
+<script>
+  const COLORS = ['#7c3aed','#06b6d4','#f59e0b','#10b981','#ef4444','#ec4899','#8b5cf6','#14b8a6','#f97316','#a855f7'];
+  let processCount = 3;
+  let usePriority = false;
+
+  function toggleCard(cb) {
+    const card = cb.closest('.algo-card');
+    card.classList.toggle('selected', cb.checked);
+    updateUI();
+    buildTable();
+  }
+
+  function selectRadio(rb) {
+    document.querySelectorAll('.radio-option').forEach(r => r.classList.remove('selected'));
+    rb.closest('.radio-option').classList.add('selected');
+  }
+
+  function getSelectedAlgos() {
+    return [...document.querySelectorAll('.algo-grid input[type=checkbox]:checked')].map(c => c.value);
+  }
+
+  function updateUI() {
+    const algos = getSelectedAlgos();
+    usePriority = algos.includes('priorityNP') || algos.includes('priorityP');
+    const hasRR = algos.includes('rr');
+    document.getElementById('step-priority-type').classList.toggle('hidden', !usePriority);
+    document.getElementById('step-quantum').classList.toggle('hidden', !hasRR);
+    renumberSteps();
+  }
+
+  function renumberSteps() {
+    let n = 2;
+    if (!document.getElementById('step-priority-type').classList.contains('hidden')) {
+      document.querySelector('#step-priority-type .step-num').textContent = String(n++).padStart(2,'0');
+    }
+    document.getElementById('step3num').textContent = String(n++).padStart(2,'0');
+    document.getElementById('step4num').textContent = String(n++).padStart(2,'0');
+    if (!document.getElementById('step-quantum').classList.contains('hidden')) {
+      document.getElementById('step5num').textContent = String(n++).padStart(2,'0');
+    }
+  }
+
+  function changeCount(delta) {
+    processCount = Math.max(1, Math.min(10, processCount + delta));
+    document.getElementById('countDisplay').textContent = processCount;
+    buildTable();
+  }
+
+  function buildTable() {
+    const head = document.getElementById('procHead');
+    const body = document.getElementById('procBody');
+    const hasPriority = usePriority;
+
+    let ths = '<tr><th>Process</th><th>Arrival Time</th><th>Burst Time</th>';
+    if (hasPriority) ths += '<th>Priority</th>';
+    ths += '</tr>';
+    head.innerHTML = ths;
+
+    body.innerHTML = '';
+    for (let i = 0; i < processCount; i++) {
+      let row = `<tr>
+        <td><span class="pid-badge">P${i+1}</span></td>
+        <td><input type="number" id="at${i}" min="0" value="${i===0?0:''}" placeholder="AT"></td>
+        <td><input type="number" id="bt${i}" min="1" placeholder="BT"></td>`;
+      if (hasPriority) {
+        row += `<td><input type="number" id="pr${i}" min="1" placeholder="PR"></td>`;
+      }
+      row += '</tr>';
+      body.innerHTML += row;
+    }
+  }
+
+  function readProcesses() {
+    const procs = [];
+    for (let i = 0; i < processCount; i++) {
+      const at = parseInt(document.getElementById(`at${i}`).value);
+      const bt = parseInt(document.getElementById(`bt${i}`).value);
+      if (isNaN(at) || isNaN(bt) || bt < 1) throw `P${i+1}: Fill valid AT and BT`;
+      let pr = 0;
+      if (usePriority) {
+        pr = parseInt(document.getElementById(`pr${i}`).value);
+        if (isNaN(pr)) throw `P${i+1}: Fill valid Priority`;
+      }
+      procs.push({ pid: `P${i+1}`, at, bt, pr, remaining: bt, ct: 0, idx: i });
+    }
+    return procs;
+  }
+
+  function clone(procs) {
+    return procs.map(p => ({ ...p, remaining: p.bt, ct: 0 }));
+  }
+
+  // ============ ALGORITHMS ============
+
+  function fcfs(procs) {
+    let ps = clone(procs).sort((a,b)=> a.at-b.at || a.idx-b.idx);
+    let t = 0, gantt = [];
+    ps.forEach(p => {
+      if (t < p.at) { gantt.push({pid:'IDLE', start:t, end:p.at}); t = p.at; }
+      gantt.push({pid:p.pid, start:t, end:t+p.bt});
+      t += p.bt;
+      p.ct = t;
+    });
+    return { gantt, results: ps };
+  }
+
+  function sjf(procs) {
+    let ps = clone(procs);
+    let t = 0, done = [], gantt = [], remaining = [...ps];
+    while (remaining.length) {
+      let avail = remaining.filter(p => p.at <= t);
+      if (!avail.length) { t = Math.min(...remaining.map(p=>p.at)); continue; }
+      avail.sort((a,b) => a.bt-b.bt || a.at-b.at || a.idx-b.idx);
+      let p = avail[0];
+      remaining.splice(remaining.indexOf(p),1);
+      if (t < p.at) { gantt.push({pid:'IDLE',start:t,end:p.at}); t=p.at; }
+      gantt.push({pid:p.pid,start:t,end:t+p.bt});
+      t += p.bt; p.ct = t;
+      done.push(p);
+    }
+    return { gantt, results: done };
+  }
+
+  function srtf(procs) {
+    let ps = clone(procs);
+    let n = ps.length, t = 0, completed = 0, gantt = [];
+    let last = null, lastStart = 0;
+    const maxT = ps.reduce((s,p)=>s+p.bt,0) + Math.max(...ps.map(p=>p.at)) + 1;
+    while (completed < n && t < maxT + 5) {
+      let avail = ps.filter(p => p.at <= t && p.remaining > 0);
+      if (!avail.length) {
+        if (last) { gantt.push({pid:last.pid,start:lastStart,end:t}); last=null; }
+        t++; continue;
+      }
+      avail.sort((a,b)=>a.remaining-b.remaining||a.at-b.at||a.idx-b.idx);
+      let p = avail[0];
+      if (last !== p) {
+        if (last) gantt.push({pid:last.pid,start:lastStart,end:t});
+        lastStart = t; last = p;
+      }
+      p.remaining--;
+      t++;
+      if (p.remaining === 0) { p.ct = t; completed++; gantt.push({pid:p.pid,start:lastStart,end:t}); last=null; }
+    }
+    return { gantt: mergeGantt(gantt), results: ps };
+  }
+
+  function priorityNP(procs) {
+    let ps = clone(procs);
+    const hlMode = document.querySelector('input[name="priorityType"]:checked')?.value === 'hl';
+    let t = 0, done = [], gantt = [], remaining = [...ps];
+    while (remaining.length) {
+      let avail = remaining.filter(p => p.at <= t);
+      if (!avail.length) { t = Math.min(...remaining.map(p=>p.at)); continue; }
+      avail.sort((a,b) => hlMode ? b.pr-a.pr || a.at-b.at : a.pr-b.pr || a.at-b.at);
+      let p = avail[0];
+      remaining.splice(remaining.indexOf(p),1);
+      if (t < p.at) { gantt.push({pid:'IDLE',start:t,end:p.at}); t=p.at; }
+      gantt.push({pid:p.pid,start:t,end:t+p.bt});
+      t += p.bt; p.ct = t;
+      done.push(p);
+    }
+    return { gantt, results: done };
+  }
+
+  function priorityP(procs) {
+    let ps = clone(procs);
+    const hlMode = document.querySelector('input[name="priorityType"]:checked')?.value === 'hl';
+    let n = ps.length, t = 0, completed = 0, gantt = [];
+    let last = null, lastStart = 0;
+    const maxT = ps.reduce((s,p)=>s+p.bt,0) + Math.max(...ps.map(p=>p.at)) + 2;
+    while (completed < n && t < maxT + 5) {
+      let avail = ps.filter(p => p.at <= t && p.remaining > 0);
+      if (!avail.length) {
+        if (last) { gantt.push({pid:last.pid,start:lastStart,end:t}); last=null; }
+        t++; continue;
+      }
+      avail.sort((a,b) => hlMode ? b.pr-a.pr||a.at-b.at : a.pr-b.pr||a.at-b.at);
+      let p = avail[0];
+      if (last !== p) {
+        if (last) gantt.push({pid:last.pid,start:lastStart,end:t});
+        lastStart = t; last = p;
+      }
+      p.remaining--;
+      t++;
+      if (p.remaining === 0) { p.ct = t; completed++; gantt.push({pid:p.pid,start:lastStart,end:t}); last=null; }
+    }
+    return { gantt: mergeGantt(gantt), results: ps };
+  }
+
+  function roundRobin(procs) {
+    const q = parseInt(document.getElementById('quantumInput').value) || 2;
+    let ps = clone(procs).sort((a,b)=>a.at-b.at||a.idx-b.idx);
+    let t = 0, queue = [], gantt = [], inQueue = new Set();
+    let arrived = ps.filter(p=>p.at<=0);
+    arrived.forEach(p => { queue.push(p); inQueue.add(p.pid); });
+    let completed = 0;
+    while (completed < ps.length) {
+      if (!queue.length) {
+        let next = ps.filter(p=>p.remaining>0&&!inQueue.has(p.pid)).sort((a,b)=>a.at-b.at);
+        if (!next.length) break;
+        t = next[0].at;
+        ps.filter(p=>p.at<=t&&p.remaining>0&&!inQueue.has(p.pid)).forEach(p=>{queue.push(p);inQueue.add(p.pid);});
+        continue;
+      }
+      let p = queue.shift();
+      let exec = Math.min(q, p.remaining);
+      let start = t;
+      p.remaining -= exec;
+      t += exec;
+      gantt.push({pid:p.pid,start,end:t});
+      ps.filter(x=>x.at>start&&x.at<=t&&x.remaining>0&&!inQueue.has(x.pid)).forEach(x=>{queue.push(x);inQueue.add(x.pid);});
+      if (p.remaining > 0) { queue.push(p); }
+      else { p.ct = t; completed++; }
+    }
+    return { gantt, results: ps };
+  }
+
+  function mergeGantt(g) {
+    if (!g.length) return g;
+    const res = [g[0]];
+    for (let i=1; i<g.length; i++) {
+      if (g[i].pid === res[res.length-1].pid && g[i].start === res[res.length-1].end)
+        res[res.length-1].end = g[i].end;
+      else res.push(g[i]);
+    }
+    return res;
+  }
+
+  function getColor(pid, procs) {
+    if (pid === 'IDLE') return null;
+    const idx = procs.findIndex(p=>p.pid===pid);
+    return COLORS[idx % COLORS.length];
+  }
+
+  function renderGantt(gantt, procs) {
+    const container = document.createElement('div');
+    container.className = 'gantt-chart';
+    const inner = document.createElement('div');
+    inner.className = 'gantt-inner';
+    gantt.forEach(block => {
+      const width = Math.max(52, (block.end - block.start) * 36);
+      const div = document.createElement('div');
+      div.className = 'gantt-block';
+      const color = getColor(block.pid, procs);
+      const bar = document.createElement('div');
+      bar.className = 'gantt-bar' + (block.pid==='IDLE'?' idle':'');
+      bar.style.width = width + 'px';
+      if (color) bar.style.background = color;
+      bar.textContent = block.pid;
+      const time = document.createElement('div');
+      time.className = 'gantt-time';
+      time.textContent = block.start;
+      div.appendChild(bar);
+      div.appendChild(time);
+      inner.appendChild(div);
+    });
+    // Add final time
+    if (gantt.length) {
+      const endBlock = document.createElement('div');
+      endBlock.className = 'gantt-block';
+      const endTime = document.createElement('div');
+      endTime.className = 'gantt-time';
+      endTime.textContent = gantt[gantt.length-1].end;
+      endBlock.appendChild(document.createElement('div'));
+      endBlock.appendChild(endTime);
+      inner.appendChild(endBlock);
+    }
+    container.appendChild(inner);
+    return container;
+  }
+
+  function renderResults(results, procs) {
+    const table = document.createElement('table');
+    table.className = 'result-tbl';
+    table.innerHTML = `<thead><tr><th>Process</th><th>AT</th><th>BT</th><th>CT</th><th>TAT</th><th>WT</th></tr></thead>`;
+    const body = document.createElement('tbody');
+    let totalWT = 0, totalTAT = 0;
+    const sorted = [...results].sort((a,b)=>a.idx-b.idx);
+    sorted.forEach(p => {
+      const tat = p.ct - p.at;
+      const wt = tat - p.bt;
+      totalWT += wt; totalTAT += tat;
+      const color = COLORS[p.idx % COLORS.length];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><span class="pid-badge" style="color:${color};background:${color}22;">${p.pid}</span></td>
+        <td>${p.at}</td><td>${p.bt}</td><td>${p.ct}</td>
+        <td>${tat}</td><td>${wt}</td>`;
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    const avgDiv = document.createElement('div');
+    avgDiv.className = 'avg-row';
+    avgDiv.innerHTML = `
+      <div class="avg-chip">Avg TAT: <span>${(totalTAT/results.length).toFixed(2)}</span></div>
+      <div class="avg-chip">Avg WT: <span>${(totalWT/results.length).toFixed(2)}</span></div>`;
+    return { table, avgDiv };
+  }
+
+  const ALGO_NAMES = {
+    fcfs: 'First Come First Serve',
+    sjf: 'Shortest Job First',
+    srtf: 'Shortest Remaining Time First',
+    priorityNP: 'Priority Scheduling (Non-Preemptive)',
+    priorityP: 'Priority Scheduling (Preemptive)',
+    rr: 'Round Robin'
+  };
+
+  function runAll() {
+    const algos = getSelectedAlgos();
+    if (!algos.length) { alert('Select at least one algorithm!'); return; }
+
+    let procs;
+    try { procs = readProcesses(); }
+    catch(e) { alert(e); return; }
+
+    if (usePriority && !document.querySelector('input[name="priorityType"]:checked')) {
+      alert('Select a priority convention!'); return;
+    }
+
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    const runners = { fcfs, sjf, srtf, priorityNP, priorityP, rr: roundRobin };
+
+    algos.forEach((algo, i) => {
+      const { gantt, results: res } = runners[algo](procs);
+      const section = document.createElement('div');
+      section.className = 'algo-result';
+      section.style.animationDelay = (i * 0.1) + 's';
+
+      const h3 = document.createElement('h3');
+      h3.innerHTML = `${ALGO_NAMES[algo]} <span class="algo-tag">${algo.toUpperCase()}</span>`;
+      section.appendChild(h3);
+
+      const div = document.createElement('div');
+      div.className = 'divider';
+      section.appendChild(div);
+
+      const gl = document.createElement('div');
+      gl.className = 'gantt-label';
+      gl.textContent = '▶ Gantt Chart';
+      section.appendChild(gl);
+      section.appendChild(renderGantt(gantt, procs));
+
+      const rl = document.createElement('div');
+      rl.className = 'gantt-label';
+      rl.style.marginTop = '24px';
+      rl.textContent = '▶ Performance Metrics';
+      section.appendChild(rl);
+
+      const { table, avgDiv } = renderResults(res, procs);
+      section.appendChild(table);
+      section.appendChild(avgDiv);
+
+      results.appendChild(section);
+    });
+
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetAll() {
+    document.querySelectorAll('.algo-grid input[type=checkbox]').forEach(cb => { cb.checked = false; cb.closest('.algo-card').classList.remove('selected'); });
+    document.querySelectorAll('input[name="priorityType"]').forEach(r => r.checked = false);
+    document.querySelectorAll('.radio-option').forEach(r => r.classList.remove('selected'));
+    processCount = 3;
+    document.getElementById('countDisplay').textContent = 3;
+    usePriority = false;
+    document.getElementById('step-priority-type').classList.add('hidden');
+    document.getElementById('step-quantum').classList.add('hidden');
+    document.getElementById('results').innerHTML = '';
+    buildTable();
+    renumberSteps();
+  }
+
+  function toggleTheme() {
+    const isLight = document.body.classList.toggle('light');
+    document.getElementById('themeIcon').textContent = isLight ? '☀️' : '🌙';
+    document.getElementById('themeLabel').textContent = isLight ? 'LIGHT' : 'DARK';
+  }
+
+  // Init
+  buildTable();
+  renumberSteps();
+</script>
+</body>
+</html>
